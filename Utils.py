@@ -329,9 +329,9 @@ if __name__ == '__main__':
     if not os.path.exists('./SNLI/clean data/'):
         os.makedirs('./SNLI/clean data/')
 
-    convert_data('./SNLI/raw data/paraphrasing data_DH.xlsx', './SNLI/clean data/train.txt')
-    convert_data('./SNLI/raw data/paraphrasing data_DH_dev.xlsx', './SNLI/clean data/dev.txt')
-    convert_data('./SNLI/raw data/paraphrasing data_DH_test.xlsx', './SNLI/clean data/test.txt')
+    convert_data('./SNLI/raw data/paraphrase_data_train.xlsx', './SNLI/clean data/train.txt')
+    convert_data('./SNLI/raw data/paraphrase_data_dev.xlsx', './SNLI/clean data/dev.txt')
+    convert_data('./SNLI/raw data/paraphrase_data_test.xlsx', './SNLI/clean data/test.txt')
 
     # embedding preprocessing
     convert_embeddings('./SNLI/raw data/word_list.txt', './SNLI/raw data/word_emb.txt', 
