@@ -11,6 +11,7 @@ import functools
 import tensorflow as tf
 import numpy as np
 import os
+import shutil
 from datetime import timedelta
 from keras.preprocessing.sequence import pad_sequences
 from sklearn.preprocessing import OneHotEncoder
@@ -234,29 +235,79 @@ def tokenized(sentence):
     return ' '.join(new_tokens)
 
 # convert dataset from xlsx to txt (format : label || sentence1 || sentence2)
-def convert_data(xlsxPath, txtPath):
+def convert_data(xlsxPath, txtDir):
     """
     :param xlsxPath: path of dataset file
-    :param txtPath: path of output
+    :param txtDir: path of output dircetory
     """
 
     # 파일을 읽고 줄로 분리
     file = pd.read_excel(xlsxPath)
-    # good pair
-    pairs_g = [[file['train_x'][i], file['train_y'][i]] for i in range(len(file))]
-    # bad pair
+    pairs = [[file['train_x'][i], file['train_y'][i]] for i in range(len(file))]
+    pairs_len = len(pairs) # 페어 개수
+
+    # train:validation = 8:2
+    train_num = (pairs_len // 10) * 8 # train 페어 개수
+
     rot = 51 # rotation number
-    pairs_b = [[file['train_x'][i], file['train_y'][(i+rot)%len(file)]] for i in range(len(file))]
+
+    ################################################
+    # train
+    # good train pair
+    pairs_train_g = pairs[:train_num]
+    # bad train pair (rotated)
+    pairs_train_b = [[pairs_train_g[i][0], pairs_train_g[(i+rot)%len(pairs_train_g)][1]] \
+                                            for i in range(len(pairs_train_g))]
 
     # txt 파일로 변환
+    txtPath = os.path.join(txtDir, "train.txt")
     with open(txtPath, 'w') as fout:
-        for p_g, p_b in zip(pairs_g, pairs_b):
+        for p_g, p_b in zip(pairs_train_g, pairs_train_b):
             print('||'.join(['entailment', \
                 tokenized(p_g[0]), tokenized(p_g[1])]), file = fout)
             print('||'.join(['contradiction', \
                 tokenized(p_b[0]), tokenized(p_b[1])]), file = fout)
 
     print('Source data has been converted from "{0}" to "{1}".'.format(xlsxPath, txtPath))
+    ################################################
+    # validation
+    # good validation pair
+    pairs_val_g = pairs[train_num:]
+    # bad validation pair (rotated)
+    pairs_val_b = [[pairs_val_g[i][0], pairs_val_g[(i+rot)%len(pairs_val_g)][1]] \
+                                            for i in range(len(pairs_val_g))]
+
+    # txt 파일로 변환
+    txtPath = os.path.join(txtDir, "dev.txt")
+    with open(txtPath, 'w') as fout:
+        for p_g, p_b in zip(pairs_val_g, pairs_val_b):
+            print('||'.join(['entailment', \
+                tokenized(p_g[0]), tokenized(p_g[1])]), file = fout)
+            print('||'.join(['contradiction', \
+                tokenized(p_b[0]), tokenized(p_b[1])]), file = fout)
+
+    print('Source data has been converted from "{0}" to "{1}".'.format(xlsxPath, txtPath))
+    ################################################
+    # test
+    txtPath = os.path.join(txtDir, "test.txt")
+    shutil.copy(os.path.join(txtDir, "dev.txt"), txtPath)
+    print('Source data has been converted from "{0}" to "{1}".'.format(xlsxPath, txtPath))
+
+    # # good pair
+    # pairs_g = [[file['train_x'][i], file['train_y'][i]] for i in range(len(file))]
+    # # bad pair
+
+    # pairs_b = [[file['train_x'][i], file['train_y'][(i+rot)%len(file)]] for i in range(len(file))]
+
+    # # txt 파일로 변환
+    # with open(txtPath, 'w') as fout:
+    #     for p_g, p_b in zip(pairs_g, pairs_b):
+    #         print('||'.join(['entailment', \
+    #             tokenized(p_g[0]), tokenized(p_g[1])]), file = fout)
+    #         print('||'.join(['contradiction', \
+    #             tokenized(p_b[0]), tokenized(p_b[1])]), file = fout)
+
+    # print('Source data has been converted from "{0}" to "{1}".'.format(xlsxPath, txtPath))
 
 # convert embeddings from txt to format : (embeddings, vocab_dict)
 def convert_embeddings(srcPath_list, srcPath_emb, dstPath):
@@ -329,9 +380,10 @@ if __name__ == '__main__':
     if not os.path.exists('./SNLI/clean data/'):
         os.makedirs('./SNLI/clean data/')
 
-    convert_data('./SNLI/raw data/paraphrase_data_train.xlsx', './SNLI/clean data/train.txt')
-    convert_data('./SNLI/raw data/paraphrase_data_dev.xlsx', './SNLI/clean data/dev.txt')
-    convert_data('./SNLI/raw data/paraphrase_data_test.xlsx', './SNLI/clean data/test.txt')
+    convert_data('./SNLI/raw data/paraphrase_data.xlsx', './SNLI/clean data/')
+    # convert_data('./SNLI/raw data/paraphrase_data_train.xlsx', './SNLI/clean data/train.txt')
+    # convert_data('./SNLI/raw data/paraphrase_data_dev.xlsx', './SNLI/clean data/dev.txt')
+    # convert_data('./SNLI/raw data/paraphrase_data_test.xlsx', './SNLI/clean data/test.txt')
 
     # embedding preprocessing
     convert_embeddings('./SNLI/raw data/word_list.txt', './SNLI/raw data/word_emb.txt', 
