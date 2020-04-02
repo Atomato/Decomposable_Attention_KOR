@@ -26,7 +26,18 @@ sp = SentencepieceTokenizer("./SNLI/raw data/kobert_news_wiki_ko_cased-1087f8699
 
 UNKNOWN = '<UNK>'
 PADDING = '<PAD>'
-EQ = '<EQ>'
+SPECIAL_TOKENS = ['<EXPR>', '<UNVAR>', '<ARRW>', '<EQUL>', '<INEQ>']
+KOREAN_2_SPECIAL = {'(수식)':'\N{Arabic Poetic Verse Sign}',
+                     '(미지수)':'\N{Arabic Sign Misra}' ,
+                     '(화살표)':'\N{Arabic Place of Sajdah}',
+                     '(등호)':'\N{Arabic Sign Sindhi Ampersand}',
+                     '(부등호)':'\N{ARABIC SEMICOLON}'}
+SPECIAL_2_ENG = dict(zip(['\N{Arabic Poetic Verse Sign}',
+                     '\N{Arabic Sign Misra}',
+                     '\N{Arabic Place of Sajdah}',
+                     '\N{Arabic Sign Sindhi Ampersand}',
+                     '\N{ARABIC SEMICOLON}'], SPECIAL_TOKENS))
+
 CATEGORIE_ID = {'contradiction' : 0, 'entailment' : 1}
 
 def lazy_property(function):
@@ -138,7 +149,6 @@ def load_vocab(vocabPath, threshold = 0):
     index = 2
     vocab[PADDING] = 0
     vocab[UNKNOWN] = 1
-    vocab[EQ] = 2
     with open(vocabPath, encoding='utf-8') as f:
         for line in f:
             items = [v.strip() for v in line.split('||')]
@@ -219,20 +229,14 @@ def next_batch(premise, premise_mask, hypothesis, hypothesis_mask, y, batchSize 
                hypothesis[startIndex : endIndex], hypothesis_mask[startIndex : endIndex],
                y[startIndex : endIndex])
 
-# convert to tokenized sentence (format: )
-def tokenized(sentence):
-    tokens = [token for token in sp(sentence)]
-    new_tokens = []
-    i=0
-    while i<len(tokens):
-        if i < len(tokens)-3 and (tokens[i] == '▁(' or tokens[i] == '(') \
-                and tokens[i+1] == '수' and tokens[i+2] == '식' and tokens[i+3] == ')':
-            new_tokens.append('<EQ>')
-            i= i+4
-        else:
-            new_tokens.append(tokens[i])
-            i+=1
-    return ' '.join(new_tokens)
+# convert to tokenized sentence
+def kobert_tokenizer(sentence):
+    for k,v in KOREAN_2_SPECIAL.items(): # replace special tokens
+        sentence = sentence.replace(k,v)
+    tokens = [token.lower().strip() for token in sp(sentence)]
+    tokens = [SPECIAL_2_ENG[ele] if ele in SPECIAL_2_ENG else ele for ele in tokens]
+
+    return ' '.join(tokens)
 
 # convert dataset from xlsx to txt (format : label || sentence1 || sentence2)
 def convert_data(xlsxPath, txtDir):
@@ -264,9 +268,9 @@ def convert_data(xlsxPath, txtDir):
     with open(txtPath, 'w') as fout:
         for p_g, p_b in zip(pairs_train_g, pairs_train_b):
             print('||'.join(['entailment', \
-                tokenized(p_g[0]), tokenized(p_g[1])]), file = fout)
+                kobert_tokenizer(p_g[0]), kobert_tokenizer(p_g[1])]), file = fout)
             print('||'.join(['contradiction', \
-                tokenized(p_b[0]), tokenized(p_b[1])]), file = fout)
+                kobert_tokenizer(p_b[0]), kobert_tokenizer(p_b[1])]), file = fout)
 
     print('Source data has been converted from "{0}" to "{1}".'.format(xlsxPath, txtPath))
     ################################################
@@ -282,9 +286,9 @@ def convert_data(xlsxPath, txtDir):
     with open(txtPath, 'w') as fout:
         for p_g, p_b in zip(pairs_val_g, pairs_val_b):
             print('||'.join(['entailment', \
-                tokenized(p_g[0]), tokenized(p_g[1])]), file = fout)
+                kobert_tokenizer(p_g[0]), kobert_tokenizer(p_g[1])]), file = fout)
             print('||'.join(['contradiction', \
-                tokenized(p_b[0]), tokenized(p_b[1])]), file = fout)
+                kobert_tokenizer(p_b[0]), kobert_tokenizer(p_b[1])]), file = fout)
 
     print('Source data has been converted from "{0}" to "{1}".'.format(xlsxPath, txtPath))
     ################################################
@@ -292,22 +296,6 @@ def convert_data(xlsxPath, txtDir):
     txtPath = os.path.join(txtDir, "test.txt")
     shutil.copy(os.path.join(txtDir, "dev.txt"), txtPath)
     print('Source data has been converted from "{0}" to "{1}".'.format(xlsxPath, txtPath))
-
-    # # good pair
-    # pairs_g = [[file['train_x'][i], file['train_y'][i]] for i in range(len(file))]
-    # # bad pair
-
-    # pairs_b = [[file['train_x'][i], file['train_y'][(i+rot)%len(file)]] for i in range(len(file))]
-
-    # # txt 파일로 변환
-    # with open(txtPath, 'w') as fout:
-    #     for p_g, p_b in zip(pairs_g, pairs_b):
-    #         print('||'.join(['entailment', \
-    #             tokenized(p_g[0]), tokenized(p_g[1])]), file = fout)
-    #         print('||'.join(['contradiction', \
-    #             tokenized(p_b[0]), tokenized(p_b[1])]), file = fout)
-
-    # print('Source data has been converted from "{0}" to "{1}".'.format(xlsxPath, txtPath))
 
 # convert embeddings from txt to format : (embeddings, vocab_dict)
 def convert_embeddings(srcPath_list, srcPath_emb, dstPath):
@@ -381,9 +369,6 @@ if __name__ == '__main__':
         os.makedirs('./SNLI/clean data/')
 
     convert_data('./SNLI/raw data/paraphrase_data.xlsx', './SNLI/clean data/')
-    # convert_data('./SNLI/raw data/paraphrase_data_train.xlsx', './SNLI/clean data/train.txt')
-    # convert_data('./SNLI/raw data/paraphrase_data_dev.xlsx', './SNLI/clean data/dev.txt')
-    # convert_data('./SNLI/raw data/paraphrase_data_test.xlsx', './SNLI/clean data/test.txt')
 
     # embedding preprocessing
     convert_embeddings('./SNLI/raw data/word_list.txt', './SNLI/raw data/word_emb.txt', 
